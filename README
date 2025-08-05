@@ -1,0 +1,68 @@
+-------------------------------------------------------------------------------------------------------
+The University of Washington TriviaQA Dataset (version 1.0)
+-------------------------------------------------------------------------------------------------------
+
+TriviaQA is a reading comprehension dataset containing over 650K question-answer-evidence triples. TriviaQA includes 95K question-answer pairs authored by trivia enthusiasts and independently gathered evidence documents, six per question on average, that provide high quality distant supervision for answering the questions. The details can be found in our paper
+
+@InProceedings{JoshiTriviaQA2017,
+  author    = {Joshi, Mandar  and  Choi, Eunsol  and  Weld, Daniel S. and Zettlemoyer, Luke},
+  title     = {TriviaQA: A Large Scale Distantly Supervised Challenge Dataset for Reading Comprehension},
+  booktitle = {Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)},
+  month     = {July},
+  year      = {2017},
+  address   = {Vancouver, Canada},
+  publisher = {Association for Computational Linguistics},
+}
+
+-------------------------------------------------------------------------------------------------------
+LIST OF DATA FILES
+* qa/wikipedia-train.json, qa/web-train.json
+* qa/[verified-]wikipedia-dev.json, qa/[verified-]web-dev.json
+These files contain [verified] questions, answers, and document names in the train/dev set for the wikipedia/web domain. The details of the verified evaluation set are described in section 4 (evidence analysis) of the paper. The wikipedia/web documents are listed in the json array "EntityPages"/"SearchResults" for each question. The "Filename" field in each element of the array indicates the relative path of the file inside the wikipedia/web directory in evidence.
+
+* qa/wikipedia-test-without-answers.json, qa/web-test-without-answers.json
+These files contain questions and document names (no answers) in the train/dev set for the wikipedia/web domain. We are withholding the test answers for a later release. Please check the website -- http://nlp.cs.washington.edu/triviaqa/ -- for details of the test evaluation. 
+
+* evidence/web, evidence/wikipedia
+These directories contain documents in the train/dev/test set for the wikipedia/web domain. The documents are referenced in the json array "EntityPages"/"SearchResults" for each question in the QA pair files. The "Filename" field in each element of the array indicates the relative path of the file inside the wikipedia/web directory.
+
+-------------------------------------------------------------------------------------------------------
+FORMAT
+Each QA example is in the following format.
+- Answer: 
+  - Value: The answer string obtained from the orginal trivia website
+  - Aliases: A list of aliases (from Wikipedia and other sources). 
+  - NormalizedAliases: Normalized variant of the above. A predicted answer is considered an exact match if it belongs to this list.
+  - Type: Numeric, WikipediaEntity or FreeForm
+  - MatchedWikiEntityName: Present only if Type is WikipediaEntity
+  - NormalizedMatchedWikiEntityName: Present only if Type is WikipediaEntity
+- EntityPages: A list of Wikipedia documents for the question. Each document of the format:
+  - DocSource: Search or TagMe
+  - Filename: Filename in "evidence/wikipedia" directory.
+  - Title: Wikipedia page title
+- Question: The question string
+- QuestionId: A unique alphanumeric ID for the question 
+- QuestionSource: The website from which the question was crawled.
+- SearchResults: A list of retrieved web pages which contains the answer entities. Each webpage of format 
+  - Description: Search snippet.
+  - Filename: Filename in "evidence/web" directory.
+  - Rank: Search output rank
+  - Title: Page Title
+  - Url: Url of the page
+
+-------------------------------------------------------------------------------------------------------
+CODE
+Code, including evaluation scripts, can be found at
+https://github.com/mandarjoshi90/triviaqa
+
+-------------------------------------------------------------------------------------------------------
+CONTACT
+Mandar Joshi 			mandar90@cs.washington.edu
+Eunsol Choi   			eunsol@cs.washington.edu
+Dan Weld       			weld@cs.washington.edu
+Luke Zettlemoyer 		lsz@cs.washington.edu
+
+-------------------------------------------------------------------------------------------------------
+LEGAL
+The University of Washington does not own the copyright of the questions and documents included in TriviaQA. We are not responsible for their content or meaning. The dataset is intended for non-commercial research purposes only. By downloading the dataset, you agree not to reproduce, duplicate, copy, sell, trade, resell or exploit for any commercial purpose, any portion of the contexts and any portion of derived data. 
+

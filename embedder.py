@@ -8,6 +8,9 @@ import pandas as pd
 from typing import List
 from tqdm import tqdm
 
+import warnings
+warnings.filterwarnings("ignore")
+
 def get_embedding(texts: List[str], tokenizer, model) -> np.ndarray:
     encoded = tokenizer(texts, padding=True, truncation=True, return_tensors='pt').to("cuda")
     with torch.no_grad():
@@ -32,6 +35,7 @@ def main():
     parser.add_argument('--m', type=int, default=32)
     parser.add_argument('--batch_size', type=int, default=1024)
     parser.add_argument('--max_train_samples', type=int, default=1_000_000)
+
     args = parser.parse_args()
 
     print("Start!")

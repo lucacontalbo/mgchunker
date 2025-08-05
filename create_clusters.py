@@ -54,7 +54,6 @@ for prefix, faiss_ids in tqdm(prefix_to_faiss_ids.items()):
     
     embeddings = np.array([index.reconstruct(int(fid)) for fid in faiss_ids_np])
     
-    # 4. Cluster embeddings (for example, k=3 clusters, tune as needed)
     if len(embeddings) < 2:
         cluster_centroids = {
             0: embeddings[0]
