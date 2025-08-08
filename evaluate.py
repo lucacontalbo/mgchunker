@@ -109,6 +109,7 @@ if __name__ == "__main__":
     for i in tqdm(range(len(prediction_df)), desc="Evaluating..."):
         found = False
         result = test_df.iloc[i, 1]
+        query = test_df.iloc[i, 0]
         if isinstance(result, str):
             result = eval(result)
 

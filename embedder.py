@@ -23,7 +23,7 @@ def get_embedding(texts: List[str], tokenizer, model) -> np.ndarray:
             embeddings = outputs.last_hidden_state[:,0]
             embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
 
-    return embeddings.cpu().numpy().astype('float32')
+    return embeddings.cpu().numpy().astype('float16')
 
 def main():
     parser = argparse.ArgumentParser()
@@ -31,11 +31,10 @@ def main():
     parser.add_argument('--datapath', type=str, required=True)
     parser.add_argument('--output_index', type=str, default='index.faiss')
     parser.add_argument('--output_meta', type=str, default='meta.json')
-    parser.add_argument('--nlist', type=int, default=4096)
-    parser.add_argument('--m', type=int, default=32)
-    parser.add_argument('--batch_size', type=int, default=1024)
-    parser.add_argument('--max_train_samples', type=int, default=1_000_000)
-
+    parser.add_argument('--nlist', type=int, default=1024)
+    parser.add_argument('--m', type=int, default=96)
+    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--max_train_samples', type=int, default=100_000)
     args = parser.parse_args()
 
     print("Start!")
@@ -63,8 +62,8 @@ def main():
 
     print("🏗️ Creating and training FAISS index...")
     quantizer = faiss.IndexFlatL2(dim)
-    index = faiss.IndexIVFPQ(quantizer, dim, args.nlist, args.m, 8)
-    index.metric_type = faiss.METRIC_L2
+    index = faiss.IndexIVFFlat(quantizer, dim, args.nlist) #faiss.IndexIVFPQ(quantizer, dim, args.nlist, args.m, 8)
+    index.metric_type = faiss.METRIC_INNER_PRODUCT
     index.train(train_matrix)
 
     print("🔄 Second pass: Adding full dataset to the index...")
