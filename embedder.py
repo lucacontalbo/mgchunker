@@ -29,9 +29,9 @@ def get_embedding(texts: List[str], model_name, tokenizer=None, model=None) -> n
 
     with torch.no_grad():
         if model_name in st:
-            token_embs = model.encode(texts)
-        elif hasattr(model, "encoder"):
-            token_embs = model.encoder(input_ids=encoded["input_ids"], attention_mask=encoded["attention_mask"])
+            token_embs = model.encode(texts, convert_to_tensor=True)
+        #elif hasattr(model, "encoder"):
+        #    token_embs = model.encoder(input_ids=encoded["input_ids"], attention_mask=encoded["attention_mask"])
         else:
             token_embs = model(**encoded)
 
