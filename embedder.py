@@ -42,12 +42,13 @@ def get_embedding(texts: List[str], model_name, tokenizer=None, model=None) -> n
         elif model_name in pooler_output:
             sent_embs = token_embs.pooler_output
         elif model_name in st:
-            pass
+            sent_embs = token_embs
         else:
             token_embs = token_embs.last_hidden_state
             sent_embs = token_embs[:,0] #cls
         sent_embs = F.normalize(sent_embs, p=2, dim=1)
 
+    print(sent_embs.shape)
     return sent_embs.cpu().numpy().astype('float32')
 
 def main():
