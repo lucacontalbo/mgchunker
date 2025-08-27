@@ -122,6 +122,8 @@ if __name__ == "__main__":
                 # [value[1] for value in pred_vals])
 
         texts = []
+        print(f"Query: {query}")
+        print(ids)
         for id_ in ids:
             if id_ not in id2content.keys():
                 print("error")
@@ -129,6 +131,9 @@ if __name__ == "__main__":
                 continue
             texts.append(normalize_answer(id2content[id_]))
 
+        print(texts)
+        print("*****")
+        print(result)
         for res in result:
             res = normalize_answer(res)
             if any(res in text for text in texts):
@@ -139,6 +144,14 @@ if __name__ == "__main__":
             accuracy.append(0)
         else:
             accuracy.append(1)
+        print(f"Accuracy: {accuracy[-1]}")
+        """print("*******************")
+        print(query)
+        print(result)
+        print(texts)
+        print(found)
+        if i == 10:
+            print(a)"""
 
     # Calculate final metric
     value = round((sum(accuracy) / len(accuracy)) * 100, 4)

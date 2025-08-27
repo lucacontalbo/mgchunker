@@ -2,28 +2,37 @@ import argparse
 import json
 import faiss
 import torch
+import torch.nn.functional as F
 import numpy as np
 from transformers import AutoTokenizer, AutoModel
 import pandas as pd
 from typing import List
 from tqdm import tqdm
-
+import os
 import warnings
+from multiprocessing import cpu_count
+import time
+
 warnings.filterwarnings("ignore")
+faiss.omp_set_num_threads(int(os.environ.get("SLURM_CPUS_PER_TASK", cpu_count())))
+print(f"Using {faiss.omp_get_max_threads()} instead of value given by cpu_count: {cpu_count()}")
 
 def get_embedding(texts: List[str], tokenizer, model) -> np.ndarray:
     encoded = tokenizer(texts, padding=True, truncation=True, return_tensors='pt').to("cuda")
     with torch.no_grad():
         if hasattr(model, "encoder"):
-            encoder_outputs = model.encoder(input_ids=encoded["input_ids"], attention_mask=encoded["attention_mask"])
-            embeddings = encoder_outputs.last_hidden_state[:,0]
-            embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
+            token_embs = model.encoder(input_ids=encoded["input_ids"], attention_mask=encoded["attention_mask"]).last_hidden_state
+            #embeddings = encoder_outputs.last_hidden_state[:,0]
+            #embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
         else:
-            outputs = model(**encoded)
-            embeddings = outputs.last_hidden_state[:,0]
-            embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
+            token_embs = model(**encoded).last_hidden_state
+            #embeddings = outputs.last_hidden_state[:,0]
+            #embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
+        mask = encoded["attention_mask"].unsqueeze(-1).to(token_embs.dtype)
+        sent_embs = (token_embs * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1e-9)
+        sent_embs = F.normalize(sent_embs, p=2, dim=1)
 
-    return embeddings.cpu().numpy().astype('float16')
+    return sent_embs.cpu().numpy().astype('float32')
 
 def main():
     parser = argparse.ArgumentParser()
@@ -33,8 +42,8 @@ def main():
     parser.add_argument('--output_meta', type=str, default='meta.json')
     parser.add_argument('--nlist', type=int, default=1024)
     parser.add_argument('--m', type=int, default=96)
-    parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--max_train_samples', type=int, default=100_000)
+    parser.add_argument('--batch_size', type=int, default=1024)
+    parser.add_argument('--max_train_samples', type=int, default=3_000_000)
     args = parser.parse_args()
 
     print("Start!")
@@ -58,11 +67,16 @@ def main():
         if total_seen >= args.max_train_samples:
             break
 
+    print("Out of the train extraction. Concatenating...")
+    t0 = time.time()
     train_matrix = np.concatenate(train_embeddings, axis=0)[:args.max_train_samples]
+    print("Concatenate done. shape:", train_matrix.shape, "took", time.time()-t0, "s", flush=True)
 
     print("🏗️ Creating and training FAISS index...")
-    quantizer = faiss.IndexFlatL2(dim)
-    index = faiss.IndexIVFFlat(quantizer, dim, args.nlist) #faiss.IndexIVFPQ(quantizer, dim, args.nlist, args.m, 8)
+    #quantizer = faiss.IndexFlatL2(dim)
+    quantizer = faiss.IndexFlatIP(dim)
+    #index = faiss.IndexIVFFlat(quantizer, dim, args.nlist) #faiss.IndexIVFPQ(quantizer, dim, args.nlist, args.m, 8)
+    index = faiss.IndexIVFPQ(quantizer, dim, args.nlist, args.m, 16)
     index.metric_type = faiss.METRIC_INNER_PRODUCT
     index.train(train_matrix)
 

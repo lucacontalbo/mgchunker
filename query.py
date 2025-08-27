@@ -5,24 +5,29 @@ import numpy as np
 import os
 import pandas as pd
 import torch
+import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
 from functools import lru_cache
+from typing import List
 
 from data_processor import NQProcessor, index_paths, index_root_path, index_paths_cluster
 
-def get_embedding(texts, tokenizer, model):
+def get_embedding(texts: List[str], tokenizer, model) -> np.ndarray:
     encoded = tokenizer(texts, padding=True, truncation=True, return_tensors='pt').to("cuda")
     with torch.no_grad():
         if hasattr(model, "encoder"):
-            encoder_outputs = model.encoder(input_ids=encoded["input_ids"], attention_mask=encoded["attention_mask"])
-            embeddings = encoder_outputs.last_hidden_state[:,0]
-            embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
+            token_embs = model.encoder(input_ids=encoded["input_ids"], attention_mask=encoded["attention_mask"]).last_hidden_state
+            #embeddings = encoder_outputs.last_hidden_state[:,0]
+            #embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
         else:
-            outputs = model(**encoded)
-            embeddings = outputs.last_hidden_state[:,0]
-            embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
+            token_embs = model(**encoded).last_hidden_state
+            #embeddings = outputs.last_hidden_state[:,0]
+            #embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
+        mask = encoded["attention_mask"].unsqueeze(-1).to(token_embs.dtype)
+        sent_embs = (token_embs * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1e-9)
+        sent_embs = F.normalize(sent_embs, p=2, dim=1)
 
-    return embeddings.cpu().numpy().astype('float32')
+    return sent_embs.cpu().numpy().astype('float32')
 
 @lru_cache()
 def load_model(model_name):
