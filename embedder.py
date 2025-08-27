@@ -17,19 +17,22 @@ warnings.filterwarnings("ignore")
 faiss.omp_set_num_threads(int(os.environ.get("SLURM_CPUS_PER_TASK", cpu_count())))
 print(f"Using {faiss.omp_get_max_threads()} instead of value given by cpu_count: {cpu_count()}")
 
-def get_embedding(texts: List[str], tokenizer, model) -> np.ndarray:
+cls = ["sup-simcse-bert-base-uncased", "dpr-ctx_encoder-multiset-base"]
+mean_pooling = ["gtr-t5-base", "contriever", "multilingual-e5-large-instruct"]
+
+def get_embedding(texts: List[str], tokenizer, model, model_name) -> np.ndarray:
     encoded = tokenizer(texts, padding=True, truncation=True, return_tensors='pt').to("cuda")
     with torch.no_grad():
         if hasattr(model, "encoder"):
             token_embs = model.encoder(input_ids=encoded["input_ids"], attention_mask=encoded["attention_mask"]).last_hidden_state
-            #embeddings = encoder_outputs.last_hidden_state[:,0]
-            #embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
         else:
             token_embs = model(**encoded).last_hidden_state
-            #embeddings = outputs.last_hidden_state[:,0]
-            #embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
-        mask = encoded["attention_mask"].unsqueeze(-1).to(token_embs.dtype)
-        sent_embs = (token_embs * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1e-9)
+
+        if model_name in mean_pooling:
+            mask = encoded["attention_mask"].unsqueeze(-1).to(token_embs.dtype)
+            sent_embs = (token_embs * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1e-9)
+        else:
+            sent_embs = token_embs[:,0] #cls
         sent_embs = F.normalize(sent_embs, p=2, dim=1)
 
     return sent_embs.cpu().numpy().astype('float32')
@@ -59,7 +62,7 @@ def main():
     total_seen = 0
     for chunk in tqdm(reader, desc="Training sample collection"):
         texts = chunk["contents"].tolist()
-        embs = get_embedding(texts, tokenizer, model)
+        embs = get_embedding(texts, tokenizer, model, args.model.split("/")[-1])
         if dim is None:
             dim = embs.shape[1]
         train_embeddings.append(embs)
@@ -73,9 +76,7 @@ def main():
     print("Concatenate done. shape:", train_matrix.shape, "took", time.time()-t0, "s", flush=True)
 
     print("🏗️ Creating and training FAISS index...")
-    #quantizer = faiss.IndexFlatL2(dim)
     quantizer = faiss.IndexFlatIP(dim)
-    #index = faiss.IndexIVFFlat(quantizer, dim, args.nlist) #faiss.IndexIVFPQ(quantizer, dim, args.nlist, args.m, 8)
     index = faiss.IndexIVFPQ(quantizer, dim, args.nlist, args.m, 16)
     index.metric_type = faiss.METRIC_INNER_PRODUCT
     index.train(train_matrix)
@@ -93,10 +94,10 @@ def main():
         num_vectors = len(embs)
         faiss_ids = np.arange(current_id, current_id + num_vectors, dtype=np.int64)
 
-        # Add vectors with specified FAISS integer IDs
+        # add vectors with specified FAISS integer IDs
         index.add_with_ids(embs, faiss_ids)
 
-        # Store mapping from FAISS int ID to original string ID
+        # store mapping from FAISS int ID to original string ID
         for fid, sid in zip(faiss_ids, string_ids):
             metadata[str(fid)] = sid  # key = FAISS ID, value = original string ID
 
