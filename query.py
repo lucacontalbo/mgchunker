@@ -6,40 +6,54 @@ import os
 import pandas as pd
 import torch
 import torch.nn.functional as F
-from transformers import AutoTokenizer, AutoModel
 from functools import lru_cache
 from typing import List
+import warnings
+from multiprocessing import cpu_count
+from sentence_transformers import SentenceTransformer, models
 
 from data_processor import NQProcessor, index_paths, index_root_path, index_paths_cluster
 
-def get_embedding(texts: List[str], tokenizer, model) -> np.ndarray:
-    encoded = tokenizer(texts, padding=True, truncation=True, return_tensors='pt').to("cuda")
-    with torch.no_grad():
-        if hasattr(model, "encoder"):
-            token_embs = model.encoder(input_ids=encoded["input_ids"], attention_mask=encoded["attention_mask"]).last_hidden_state
-            #embeddings = encoder_outputs.last_hidden_state[:,0]
-            #embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
-        else:
-            token_embs = model(**encoded).last_hidden_state
-            #embeddings = outputs.last_hidden_state[:,0]
-            #embeddings = embeddings.cpu() / np.linalg.norm(embeddings.cpu(), axis=1, keepdims=True)
-        mask = encoded["attention_mask"].unsqueeze(-1).to(token_embs.dtype)
-        sent_embs = (token_embs * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1e-9)
-        sent_embs = F.normalize(sent_embs, p=2, dim=1)
+warnings.filterwarnings("ignore")
+faiss.omp_set_num_threads(int(os.environ.get("SLURM_CPUS_PER_TASK", cpu_count())))
+print(f"Using {faiss.omp_get_max_threads()} instead of value given by cpu_count: {cpu_count()}")
 
-    return sent_embs.cpu().numpy().astype('float32')
+cls = ["sup-simcse-bert-base-uncased"]
+
+def get_embedding(texts: List[str], model=None) -> np.ndarray:
+    with torch.no_grad():
+        token_embs = model.encode(texts, convert_to_tensor=True)
+        sent_embs = F.normalize(token_embs, p=2, dim=1)
+
+    return sent_embs.cpu().numpy().astype('float32') #faiss requires float32
 
 @lru_cache()
-def load_model(model_name):
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name).to("cuda")
-    return tokenizer, model
+def load_model(model_name_full: str):
+    model_name = model_name_full.split("/")[-1]
+    word_emb_model = models.Transformer(model_name_full, max_seq_length=512)
+    if model_name not in cls:
+        pooling_model_mean = models.Pooling(
+            word_emb_model.get_word_embedding_dimension(),
+            pooling_mode_mean_tokens=True,
+            pooling_mode_cls_token=False,
+            pooling_mode_max_tokens=False
+        )
+    else:
+        pooling_model_mean = models.Pooling(
+            word_emb_model.get_word_embedding_dimension(),
+            pooling_mode_mean_tokens=False,
+            pooling_mode_cls_token=True,
+            pooling_mode_max_tokens=False
+        )
+    model = SentenceTransformer(modules=[word_emb_model, pooling_model_mean]).to("cuda").half()
+    model.eval()
+
+    return model
 
 def query_faiss_index(query_texts, model_name, index_path, meta_path, top_k=5):
     # Load tokenizer and model
     print("loading model")
-    tokenizer, model = load_model(model_name)
-    model.eval()
+    model = load_model(model_name)
 
     # Load FAISS index and metadata
     print("reading index...")
@@ -51,7 +65,7 @@ def query_faiss_index(query_texts, model_name, index_path, meta_path, top_k=5):
 
     print("computing query embedding...")
     # Compute embeddings for query texts
-    embeddings = get_embedding(query_texts, tokenizer, model)
+    embeddings = get_embedding(query_texts, model)
 
     # Search FAISS index
     print("index search...")
