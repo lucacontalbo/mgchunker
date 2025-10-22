@@ -4,7 +4,6 @@ import faiss
 import torch
 import torch.nn.functional as F
 import numpy as np
-from transformers import AutoTokenizer, AutoModel
 import pandas as pd
 from typing import List
 from tqdm import tqdm
@@ -22,10 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 executor = ThreadPoolExecutor(max_workers=2)
 
-#pooler_output = ["dpr-ctx_encoder-multiset-base"]
 cls = ["sup-simcse-bert-base-uncased"]
-#st = ["gtr-t5-base","contriever", "multilingual-e5-large-instruct","sup-simcse-bert-base-uncased","dpr-ctx_encoder-multiset-base"] #sentencetransformer
-#mean_pooling = ["contriever", "multilingual-e5-large-instruct"]
 
 def get_embedding(texts: List[str], model=None) -> np.ndarray:
     with torch.no_grad():

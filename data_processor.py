@@ -61,64 +61,6 @@ index_paths = {
         },
 }
 
-index_paths_cluster = {
-    "gtr-t5-base": {
-        "proposition": {
-            "index": "gtr-t5-base/gtr-t5-base_proposition_index_cluster.faiss",
-            "meta": "gtr-t5-base/gtr-t5-base_proposition_meta_cluster.jsonl"
-        },
-        "sentence": {
-            "index": "gtr-t5-base/gtr-t5-base_sentences_index_cluster.faiss",
-            "meta": "gtr-t5-base/gtr-t5-base_sentences_meta_cluster.json"
-        },
-        "passage": {
-            "index": "gtr-t5-base/gtr-t5-base_passages_index_cluster.faiss",
-            "meta": "gtr-t5-base/gtr-t5-base_passages_meta_cluster.json"
-        }
-    },
-    "contriever": {
-        "proposition": {
-            "index": "contriever/contriever_proposition_index_cluster.faiss",
-            "meta": "contriever/contriever_proposition_meta_cluster.jsonl"
-        },
-        "sentence": {
-            "index": "contriever/contriever_sentences_index_cluster.faiss",
-            "meta": "contriever/contriever_sentences_meta_cluster.json"
-        },
-        "passage": {
-            "index": "contriever/contriever_passages_index_cluster.faiss",
-            "meta": "contriever/contriever_passages_meta_cluster.json"
-        }
-    },
-    "multilingual-e5-large-instruct": {
-        "proposition": {
-            "index": "multilingual-e5-large-instruct/multilingual-e5-large-instruct_proposition_index_cluster.faiss",
-            "meta": "multilingual-e5-large-instruct/multilingual-e5-large-instruct_proposition_meta_cluster.jsonl"
-        },
-        "sentence": {
-            "index": "multilingual-e5-large-instruct/multilingual-e5-large-instruct_sentences_index_cluster.faiss",
-            "meta": "multilingual-e5-large-instruct/multilingual-e5-large-instruct_sentences_meta_cluster.json"
-        },
-        "passage": {
-            "index": "multilingual-e5-large-instruct/multilingual-e5-large-instruct_passages_index_cluster.faiss",
-            "meta": "multilingual-e5-large-instruct/multilingual-e5-large-instruct_passages_meta_cluster.json"
-        }
-    },
-    "sup-simcse-bert-base-uncased": {
-        "proposition": {
-            "index": "sup-simcse-bert-base-uncased/sup-simcse-bert-base-uncased_proposition_index_cluster.faiss",
-            "meta": "sup-simcse-bert-base-uncased/sup-simcse-bert-base-uncased_proposition_meta_cluster.jsonl"
-        },
-        "sentence": {
-            "index": "sup-simcse-bert-base-uncased/sup-simcse-bert-base-uncased_sentences_index_cluster.faiss",
-            "meta": "sup-simcse-bert-base-uncased/sup-simcse-bert-base-uncased_sentences_meta_cluster.json"
-        },
-        "passage": {
-            "index": "sup-simcse-bert-base-uncased/sup-simcse-bert-base-uncased_passages_index_cluster.faiss",
-            "meta": "sup-simcse-bert-base-uncased/sup-simcse-bert-base-uncased_passages_meta_cluster.json"
-        }
-    },
-}
 
 class DataProcessor:
     def __init__(self):
