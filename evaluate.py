@@ -6,9 +6,25 @@ import re
 import string
 import os
 from tqdm import tqdm
+import gc
+import diskcache as dc
+from data_processor import index_paths, index_root_path, index_paths_cluster, NQProcessor, EQProcessor, SquadProcessor, TriviaQAProcessor, WebQProcessor
 
-from data_processor import index_paths, index_root_path, index_paths_cluster
+class LazyDictFromDF:
+    def __init__(self, df, key_col="id", value_col="contents"):
+        self._series = df.set_index(key_col)[value_col]
 
+    def __getitem__(self, key):
+        try:
+            return self._series.loc[key]
+        except KeyError:
+            raise KeyError(key)
+
+    def __contains__(self, key):
+        return key in self._series.index
+
+    def get(self, key, default=None):
+        return self._series.get(key, default)
 
 def normalize_answer(s):
 
@@ -46,70 +62,77 @@ if __name__ == "__main__":
         file_path = os.path.join(save_dir, f"{args.k}.csv")
 
     new_metric = os.path.join(save_dir, f"{args.k}_metric.csv")
-    if args.dataset == "nq":
+    """if args.dataset == "nq":
         test_path = "./data/nq/test.csv"
+    else:
+        raise NotImplementedError()"""
+
+    if args.dataset == "nq":
+        processor = NQProcessor()
+    elif args.dataset == "eq":
+        processor = EQProcessor()
+    elif args.dataset == "squad":
+        processor = SquadProcessor()
+    elif args.dataset == "triviaqa":
+        processor = TriviaQAProcessor()
+    elif args.dataset == "webq":
+        processor = WebQProcessor()
     else:
         raise NotImplementedError()
 
-    """test_df = pd.read_csv(test_path, sep="\t")
+    questions, answers = processor.read_data()
+
+    print("loading test df", flush=True)
+    #test_df = pd.read_csv(test_path, sep="\t")
+    print("loading prediction df", flush=True)
     prediction_df = pd.read_csv(file_path)
-    data_df = pd.read_csv(f"data/factoid/{args.method}.csv") # may fill the cpu
-
-    assert len(test_df) == len(prediction_df)
-    accuracy = []
-    for i, row in tqdm(prediction_df.iterrows()):
-        found = False
-        result = test_df.iloc[i,1]
-        if isinstance(result, str):
-            result = eval(result)
-
-        ids = [value[1] for j in range(len(prediction_df.columns) - 2) for value in eval(prediction_df.iloc[i, j + 1])]
-
-        texts = []
-        for id in ids:
-            content = data_df[data_df["id"] == id]["contents"]
-            texts.append(normalize_answer(content))
-
-        for res in result:
-            res = normalize_answer(res)
-            for text in texts:
-                if res in text:
-                    accuracy.append(1)
-                    found = True
-                    continue
-
-        if not found:
-            accuracy.append(0)
-
-    value = round((sum(accuracy) / len(accuracy))*100, 4)
-    metric_df = pd.DataFrame([[value]], columns=[f"Recall@{args.k}"])
-    metric_df.to_csv(new_metric, index=False)"""
-
-    test_df = pd.read_csv(test_path, sep="\t")
-    prediction_df = pd.read_csv(file_path)
+    print("ended loading", flush=True)
     df = pd.DataFrame()
     for filename in os.listdir("data/factoid/"):
         if filename.split(".")[-1] != "parquet":
             continue
-        if str(args.method) not in filename:
+        if "passage" not in filename:
             continue
 
-        print(f"Loading file {filename}...")
+        print(f"Loading file {filename}...", flush=True)
         df_tmp = pd.read_parquet(f"data/factoid/{filename}")
         df = pd.concat([df, df_tmp], ignore_index=True)
 
     df.reset_index()
-    print("Building index...")
-    id2content = dict(zip(df["id"], df["contents"]))
+    del df_tmp
+    gc.collect()
+    print("Building index...", flush=True)
+    if args.method != "proposition":
+        id2content = dict(zip(df["id"], df["contents"]))
+        id2content_ok = True
+    else:
+        df = df.set_index("id")
+        id2content_ok = False
 
-    assert len(test_df) == len(prediction_df)
+    #id2content = df.set_index("id")["contents"].to_dict()
+    """id2content = CompressedDict(
+        {
+            row.id: zlib.compress(row.contents.encode("utf-8")) for row in df.itertuples(index=False)
+        }
+    )"""
+    #job_id = os.environ.get("SLURM_ARRAY_TASK_ID", "default")
+    #id2content = dc.Cache(f"id2content_cache_{job_id}")
+
+    #for row in df.itertuples(index=False):
+    #    id2content[row.id] = row.contents
+
+    #id2content = LazyDictFromDF(df)
+    assert len(questions) == len(answers) == len(prediction_df)
 
     accuracy = []
 
     for i in tqdm(range(len(prediction_df)), desc="Evaluating..."):
         found = False
-        result = test_df.iloc[i, 1]
-        query = test_df.iloc[i, 0]
+        #result = test_df.iloc[i, 1]
+        #query = test_df.iloc[i, 0]
+        result = answers[i]
+        query = questions[i]
+
         if isinstance(result, str):
             result = eval(result)
 
@@ -122,18 +145,23 @@ if __name__ == "__main__":
                 # [value[1] for value in pred_vals])
 
         texts = []
-        print(f"Query: {query}")
-        print(ids)
+        print(f"Query: {query}", flush=True)
+        print(ids, flush=True)
         for id_ in ids:
-            if id_ not in id2content.keys():
+            """if id_ not in id2content:
                 print("error")
                 print(a)
-                continue
-            texts.append(normalize_answer(id2content[id_]))
+                continue"""
+            if args.method in ["sentence", "proposition"]:
+                id_ = "-".join(id_.split("-")[:-1])
 
-        print(texts)
-        print("*****")
-        print(result)
+            if not id2content_ok:
+                #content = df[df["id"] == id_]["contents"].item()
+                content = df.at[id_, "contents"]
+                texts.append(normalize_answer(content))
+            else:
+                texts.append(normalize_answer(id2content[id_]))
+
         for res in result:
             res = normalize_answer(res)
             if any(res in text for text in texts):
@@ -144,7 +172,7 @@ if __name__ == "__main__":
             accuracy.append(0)
         else:
             accuracy.append(1)
-        print(f"Accuracy: {accuracy[-1]}")
+        print(f"Accuracy: {accuracy[-1]}", flush=True)
         """print("*******************")
         print(query)
         print(result)
