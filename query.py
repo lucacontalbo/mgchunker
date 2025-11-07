@@ -99,7 +99,7 @@ def get_cluster_mask(I, metadata):
 
     return np.array(mask)
 
-def query_faiss_cluster(query_texts, model_name, index_path, meta_path, top_k=5, save_path="", save=True):
+def query_faiss_cluster(query_texts, model_name, index_path, meta_path, top_k=5, save_path="", save_result=True):
     print("Loading model", flush=True)
     model = load_model(model_name)
     model.eval()
@@ -173,7 +173,7 @@ def query_faiss_cluster(query_texts, model_name, index_path, meta_path, top_k=5,
 
     D_cluster = np.sum(cluster_embeds * embeddings[:, None, :], axis=-1) # * cluster_mask * notfound_weight_mask
     all_results = []
-    for cluster_weight in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]:
+    for cluster_weight in [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09]: #[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]:
         print(f"Reranking with cluster_weight={cluster_weight}...", flush=True)
         prefix = "/".join(save_path.split("/")[:-1]).format(cluster_weight=cluster_weight)
         os.makedirs(prefix, exist_ok=True)
@@ -196,7 +196,7 @@ def query_faiss_cluster(query_texts, model_name, index_path, meta_path, top_k=5,
                 query_results.append(([int(idx), original_id], float(d)))
             results.append(query_results)
         all_results.append(results)
-        if save:
+        if save_result:
             save(results, query_texts, top_k, save_path.format(cluster_weight=cluster_weight))
 
     return all_results
@@ -282,7 +282,7 @@ if __name__ == "__main__":
             meta_path,
             top_k=args.k,
             save_path=save_path,
-            save=False
+            save_result=False
         )
         predictions2 = query_faiss_cluster(
             questions[len(questions)//2:],
@@ -291,7 +291,7 @@ if __name__ == "__main__":
             meta_path,
             top_k=args.k,
             save_path=save_path,
-            save=False
+            save_result=False
         )
         for i, (pred1, pred2) in enumerate(zip(predictions1, predictions2)):
             pred = pred1+pred2
